@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>facebacat</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐱</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9eef5;--card:#fff;--ink:#16213a;--mute:#5d6b85;--line:#d5dce8;--acc:#ff4f7b;--like:#1f9d6b;--dis:#c0392b;--r:14px}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1626;--card:#18223a;--ink:#e8edf7;--mute:#97a4bf;--line:#2a3856}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-.03em}
+header h1 b{color:var(--acc)}
+form{flex:1;display:flex;gap:8px;min-width:240px;max-width:640px}
+input,select,textarea,button{font:inherit}
+input[type=search]{flex:1;padding:9px 14px;border-radius:99px;border:0;min-width:0}
+select{padding:9px 10px;border-radius:99px;border:0;max-width:150px}
+.go{background:var(--acc);color:#fff;border:0;border-radius:99px;padding:9px 18px;font-weight:600;cursor:pointer}
+main{max-width:620px;margin:20px auto;padding:0 12px}
+.post{background:var(--card);border-radius:var(--r);margin-bottom:22px;overflow:hidden;box-shadow:0 1px 3px #0002}
+.post img{width:100%;display:block;max-height:560px;object-fit:cover;background:var(--line)}
+.meta{padding:12px 16px 4px}
+.meta h2{margin:0;font-size:1.15rem}
+.meta p{margin:2px 0 0;color:var(--mute);font-size:.9rem}
+.bar{display:flex;gap:6px;padding:8px 12px 12px;border-bottom:1px solid var(--line)}
+.bar button{background:none;border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:6px 14px;cursor:pointer}
+.bar button:hover{background:var(--bg)}
+.bar .like.on{background:var(--like);color:#fff;border-color:var(--like)}
+.bar .dis.on{background:var(--dis);color:#fff;border-color:var(--dis)}
+.bar .cm{margin-left:auto}
+.box{padding:12px 16px}
+.c{padding:6px 0;border-bottom:1px dashed var(--line)}
+.c b{margin-right:6px}.c small{color:var(--mute)}
+.new{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.new input{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+.new .n{width:110px}.new .t{flex:1;min-width:140px}
+.msg{text-align:center;color:var(--mute);padding:30px 0}
+.more{display:block;margin:0 auto 40px;background:var(--ink);color:#fff;border:0;border-radius:99px;padding:10px 26px;cursor:pointer}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>face<b>ba</b>cat</h1>
+  <form id="f">
+    <input type="search" id="q" placeholder="Cerca una razza (es. siamese, bengal)" aria-label="Cerca">
+    <select id="breed" aria-label="Razza"><option value="">Tutte le razze</option></select>
+    <button class="go">Cerca</button>
+  </form>
+</header>
+<main><div id="feed"></div><div class="msg" id="msg"></div><button class="more" id="more" hidden>Carica altri gatti</button></main>
+<script>
+const $=s=>document.querySelector(s);
+const client=localStorage.fbc_client||(localStorage.fbc_client=crypto.randomUUID());
+const H={"Content-Type":"application/json","X-Client":client};
+
+// Indirizzo del backend online su Vercel
+const BACKEND = "https://facebacat-server.vercel.app";
+
+let page=0,q="",breed="";
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api=(u,o={})=>fetch(BACKEND + u,{headers:H,...o}).then(r=>r.json());
+
+function post(c){
+  const el=document.createElement("article");el.className="post";el.dataset.id=c.id;
+  el.innerHTML=`<img loading="lazy" src="${esc(c.url)}" alt="${esc(c.breed||"Gatto")}">
+  <div class="meta"><h2>${esc(c.breed||"Gatto misterioso")}</h2><p>${esc([c.origin,c.temperament].filter(Boolean).join(" – "))}</p></div>
+  <div class="bar"><button class="like ${c.mine==1?"on":""}">👍 <span>${c.likes}</span></button>
+  <button class="dis ${c.mine==-1?"on":""}">👎 <span>${c.dislikes}</span></button>
+  <button class="cm">💬 <span>${c.comments}</span></button></div>
+  <div class="box" hidden></div>`;
+  const vote=async v=>{
+    const r=await api("/api/vote/"+c.id,{method:"POST",body:JSON.stringify({value:v})});
+    if(r.error)return;
+    el.querySelector(".like span").textContent=r.likes;el.querySelector(".dis span").textContent=r.dislikes;
+    el.querySelector(".like").classList.toggle("on",r.mine==1);el.querySelector(".dis").classList.toggle("on",r.mine==-1);
+  };
+  el.querySelector(".like").onclick=()=>vote(1);
+  el.querySelector(".dis").onclick=()=>vote(-1);
+  el.querySelector(".cm").onclick=()=>toggle(el,c.id);
+  return el;
+}
+const cHtml=c=>`<div class="c"><b>${esc(c.author)}</b>${esc(c.body)} <small>${new Date(c.created*1000).toLocaleDateString("it")}</small></div>`;
+async function toggle(el,id){
+  const box=el.querySelector(".box");
+  if(!box.hidden){box.hidden=true;return}
+  box.hidden=false;
+  const list=await api("/api/comments/"+id);
+  box.innerHTML=`<div class="list">${list.length?list.map(cHtml).join(""):'<p class="msg" style="padding:8px">Nessun commento. Scrivi il primo.</p>'}</div>
+  <div class="new"><input class="n" placeholder="Nome" maxlength="30" value="${esc(localStorage.fbc_name||"")}"><input class="t" placeholder="Scrivi un commento" maxlength="500"><button class="go">Pubblica</button></div>`;
+  const send=async()=>{
+    const n=box.querySelector(".n").value,t=box.querySelector(".t");
+    if(!t.value.trim())return;
+    localStorage.fbc_name=n;
+    const r=await api("/api/comments/"+id,{method:"POST",body:JSON.stringify({author:n,body:t.value})});
+    if(r.error)return;
+    box.querySelector(".list").insertAdjacentHTML("afterbegin",cHtml(r));
+    box.querySelector(".list .msg")?.remove();
+    t.value="";
+    const s=el.querySelector(".cm span");s.textContent=+s.textContent+1;
+  };
+  box.querySelector(".go").onclick=send;
+  box.querySelector(".t").onkeydown=e=>{if(e.key=="Enter")send()};
+}
+async function load(reset){
+  if(reset){page=0;$("#feed").innerHTML=""}
+  $("#msg").textContent="Carico i gatti…";$("#more").hidden=true;
+  const p=new URLSearchParams({page,q,breed});
+  const r=await api("/api/feed?"+p).catch(()=>({error:"Server non raggiungibile"}));
+  if(r.error){$("#msg").textContent=r.error;return}
+  r.forEach(c=>$("#feed").append(post(c)));
+  $("#msg").textContent=r.length||page?"":"Nessun gatto trovato. Prova con un'altra razza.";
+  $("#more").hidden=!r.length;page++;
+}
+$("#f").onsubmit=e=>{e.preventDefault();q=$("#q").value.trim();breed=q?"":$("#breed").value;load(true)};
+$("#breed").onchange=()=>{$("#q").value="";q="";breed=$("#breed").value;load(true)};
+$("#more").onclick=()=>load(false);
+api("/api/breeds").then(b=>Array.isArray(b)&&b.forEach(x=>$("#breed").add(new Option(x.name,x.id))));
+load(true);
+</script>
+</body>
+</html>
